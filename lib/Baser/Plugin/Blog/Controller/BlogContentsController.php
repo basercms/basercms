@@ -132,6 +132,8 @@ class BlogContentsController extends BlogAppController {
 			$this->redirect(['plugin' => false, 'admin' => true, 'controller' => 'contents', 'action' => 'index']);
 		}
 
+		$blogContentData = $this->BlogContent->constructEyeCatchSize($this->BlogContent->findById($id));
+
 		if ($this->request->is(['post', 'put'])) {
 			if ($this->BlogContent->isOverPostSize()) {
 				$this->BcMessage->setError(__d('baser', '送信できるデータ量を超えています。合計で %s 以内のデータを送信してください。', ini_get('post_max_size')));
@@ -141,8 +143,18 @@ class BlogContentsController extends BlogAppController {
 			$this->request->data = $this->BlogContent->deconstructEyeCatchSize($this->request->data);
 			$this->BlogContent->set($this->request->data);
 
-			if ($this->BlogContent->save()) {
-				$this->BcMessage->setSuccess(sprintf(__d('baser', 'ブログ「%s」を更新しました。'), $this->request->data['Content']['title']));
+			if ($this->BlogContent->save(null, ['skipBlogPostSearchIndexSave' => true])) {
+				$successMessage = sprintf(__d('baser', 'ブログ「%s」を更新しました。'), $this->request->data['Content']['title']);
+				if (
+					$blogContentData['Content']['name'] != $this->request->data['Content']['name'] ||
+					$blogContentData['Content']['exclude_search'] != $this->request->data['Content']['exclude_search'] ||
+					$blogContentData['Content']['self_status'] != $this->request->data['Content']['self_status'] ||
+					$blogContentData['Content']['self_publish_begin'] != $this->request->data['Content']['self_publish_begin'] ||
+					$blogContentData['Content']['self_publish_end'] != $this->request->data['Content']['self_publish_end']
+				) {
+					$successMessage = sprintf(__d('baser', 'ブログ「%s」を更新しました。サイト内検索機能を使用している場合は検索インデックスの再構築を行ってください。'), $this->request->data['Content']['title']);
+				}
+				$this->BcMessage->setSuccess($successMessage);
 				if ($this->request->data['BlogContent']['edit_blog_template']) {
 					$this->redirectEditBlog($this->request->data['BlogContent']['template']);
 				} else {
@@ -153,7 +165,7 @@ class BlogContentsController extends BlogAppController {
 			}
 			$this->request->data = $this->BlogContent->constructEyeCatchSize($this->request->data);
 		} else {
-			$this->request->data = $this->BlogContent->constructEyeCatchSize($this->BlogContent->read(null, $id));
+			$this->request->data = $blogContentData;
 			if(!$this->request->data) {
 				$this->BcMessage->setError(__d('baser', '無効な処理です。'));
 				$this->redirect(['plugin' => false, 'admin' => true, 'controller' => 'contents', 'action' => 'index']);
